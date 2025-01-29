@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Profile Scraper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(45deg, #6a11cb, #2575fc);
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            background: white;
+            color: black;
+            max-width: 500px;
+            padding: 20px;
+            margin: 50px auto;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        input, button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+
+        button {
+            background: #6a11cb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #2575fc;
+        }
+
+        img {
+            border-radius: 50%;
+            margin: 10px 0;
+            width: 120px;
+            height: 120px;
+            border: 3px solid #6a11cb;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .post {
+            background: #f8f8f8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 10px;
+            text-align: left;
+            color: #333;
+        }
+
+        .post a {
+            color: #6a11cb;
+            text-decoration: none;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+
+        .hashtag, .mention {
+            background: #e7f3ff;
+            color: #2575fc;
+            font-size: 12px;
+            margin: 3px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Instagram Profile Scraper 🚀</h1>
+
+    <div class="container">
+        <input type="text" id="username" placeholder="Enter Instagram Username">
+        <button onclick="fetchProfile()">Get Profile</button>
+
+        <div id="profileData" class="hidden">
+            <img id="profilePic" src="" alt="Profile Picture">
+            <h2 id="fullName"></h2>
+            <p><b>@<span id="instaUsername"></span></b></p>
+            <p id="bio"></p>
+
+            <div class="stats">
+                <p>Followers: <b id="followers"></b></p>
+                <p>Following: <b id="following"></b></p>
+                <p>Posts: <b id="posts"></b></p>
+            </div>
+
+            <p>Engagement Rate: <b id="engagementRate"></b>%</p>
+
+            <h3>Recent Posts</h3>
+            <div id="postsContainer"></div>
+        </div>
+
+        <p id="errorMessage" style="color: red;" class="hidden"></p>
+    </div>
+
+    <script>
+        async function fetchProfile() {
+            const username = document.getElementById("username").value;
+            const profileDiv = document.getElementById("profileData");
+            const errorDiv = document.getElementById("errorMessage");
+            const postsContainer = document.getElementById("postsContainer");
+
+            if (!username) {
+                alert("Please enter a username!");
+                return;
+            }
+
+            profileDiv.classList.add("hidden");
+            errorDiv.classList.add("hidden");
+            postsContainer.innerHTML = "";
+
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/scrape/${username}`);
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    const profile = data.data;
+
+                    document.getElementById("profilePic").src = profile["Profile Pic URL"];
+                    document.getElementById("fullName").innerText = profile["Full Name"];
+                    document.getElementById("instaUsername").innerText = profile["Username"];
+                    document.getElementById("bio").innerText = profile["Bio"];
+                    document.getElementById("followers").innerText = profile["Followers"];
+                    document.getElementById("following").innerText = profile["Following"];
+                    document.getElementById("posts").innerText = profile["Posts Count"];
+                    document.getElementById("engagementRate").innerText = profile["Engagement Rate (%)"];
+
+                    profile["Recent Posts"].forEach(post => {
+                        const postDiv = document.createElement("div");
+                        postDiv.classList.add("post");
+                        postDiv.innerHTML = `
+                            <p><b>${post.Caption}</b></p>
+                            <p>Likes: ${post.Likes} | Comments: ${post.Comments}</p>
+                            <p>Date: ${post["Post Date"]}</p>
+                            <p>Hashtags: ${post.Hashtags.map(tag => `<span class="hashtag">#${tag}</span>`).join("")}</p>
+                            <p>Mentions: ${post.Mentions.map(user => `<span class="mention">@${user}</span>`).join("")}</p>
+                            <p><a href="${post["Post URL"]}" target="_blank">View Post</a></p>
+                        `;
+                        postsContainer.appendChild(postDiv);
+                    });
+
+                    profileDiv.classList.remove("hidden");
+                } else {
+                    errorDiv.innerText = data.message;
+                    errorDiv.classList.remove("hidden");
+                }
+            } catch (error) {
+                errorDiv.innerText = "Failed to fetch profile data. Please try again!";
+                errorDiv.classList.remove("hidden");
+            }
+        }
+    </script>
+
+</body>
+</html>
+
+
