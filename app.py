@@ -24,7 +24,7 @@ loader = instaloader.Instaloader(
 
 # Load session from file included in deployment
 try:
-    loader.load_session_from_file(os.getenv("INSTAGRAM_USER"))
+    loader.load_session_from_file("aayeri.ai")
 except Exception as e:
     logger.error(f"Failed to load session: {e}")
     raise HTTPException(
