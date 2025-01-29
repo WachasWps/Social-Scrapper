@@ -1,53 +1,61 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import instaloader
-import logging
 import os
+from pathlib import Path
+import logging
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Use pre-authenticated session
-loader = instaloader.Instaloader(
-    max_connection_attempts=3,
-    request_timeout=30
-)
+# Define session file path
+SESSION_FILE = Path(__file__).parent / "session-aayeri.ai"
 
-# Load session from file included in deployment
-try:
-    loader.load_session_from_file("aayeri.ai")
-except Exception as e:
-    logger.error(f"Failed to load session: {e}")
-    raise HTTPException(
-        status_code=500,
-        detail="Failed to initialize Instagram session"
-    )
+# Validate session file
+if not SESSION_FILE.exists():
+    logger.error(f"Session file not found at {SESSION_FILE}")
+    raise FileNotFoundError("Session file is missing")
 
-def scrape_profile(username):
+app = FastAPI()
+loader = instaloader.Instaloader()
+
+def load_instagram_session():
+    try:
+        loader.load_session_from_file("aayeri.ai", filename=str(SESSION_FILE))
+        
+        if not loader.context.is_logged_in:
+            raise ValueError("Session expired or invalid")
+            
+    except Exception as e:
+        logger.error(f"Session loading failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initialize Instagram session: {str(e)}"
+        )
+
+# Initialize session
+load_instagram_session()
+
+@app.get("/scrape/{username}")
+def scrape(username: str):
     try:
         profile = instaloader.Profile.from_username(loader.context, username)
         return {
             "username": profile.username,
             "followers": profile.followers,
-            "following": profile.followees,
             "posts": profile.mediacount
         }
     except Exception as e:
-        logger.error(f"Scraping failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Scraping error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/scrape/{username}")
-async def scrape(username: str):
-    return scrape_profile(username)
+@app.get("/debug/session")
+def debug_session():
+    return {
+        "session_file_path": str(SESSION_FILE),
+        "session_exists": SESSION_FILE.exists(),
+        "file_size": SESSION_FILE.stat().st_size if SESSION_FILE.exists() else 0
+    }
 
 if __name__ == "__main__":
     import uvicorn
