@@ -19,8 +19,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get credentials from environment variables
-INSTAGRAM_USER = os.getenv("INSTAGRAM_USER")
-INSTAGRAM_PASS = os.getenv("INSTAGRAM_PASS")
+INSTAGRAM_USER = "aayeri.ai"
+INSTAGRAM_PASS = "Wachas WP"
 
 class CustomInstaloader(instaloader.Instaloader):
     def __init__(self):
