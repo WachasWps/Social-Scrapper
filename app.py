@@ -2,83 +2,89 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import instaloader
 import logging
+import time
+import random
 
-# Initialize FastAPI app
 app = FastAPI()
 
-# Enable CORS for frontend requests
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing; restrict in production
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"],  # Expose all headers to the client
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def scrape_instagram_profile(username):
-    L = instaloader.Instaloader()
-    try:
-        # Scrape Instagram profile data
-        profile = instaloader.Profile.from_username(L.context, username)
+# Instagram credentials (use environment variables in production)
+INSTAGRAM_USER = "aayeri.ai"
+INSTAGRAM_PASS = "Wachas WP"
 
-        # Collect profile data
+# Configure Instaloader with proper headers and delays
+class CustomInstaloader(instaloader.Instaloader):
+    def __init__(self):
+        super().__init__()
+        self._session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+        })
+        self.request_timeout = 25
+        self._context._sleep = True
+        self._context._max_connection_attempts = 3
+
+# Global loader instance with session persistence
+loader = CustomInstaloader()
+
+def login_to_instagram():
+    try:
+        loader.load_session_from_file(INSTAGRAM_USER)
+    except FileNotFoundError:
+        loader.login(INSTAGRAM_USER, INSTAGRAM_PASS)
+        loader.save_session_to_file()
+
+# Perform initial login
+login_to_instagram()
+
+def scrape_instagram_profile(username):
+    try:
+        # Random delay to avoid detection
+        time.sleep(random.uniform(1, 3))
+        
+        profile = instaloader.Profile.from_username(loader.context, username)
+        
+        # Implement rate limiting handling
+        if loader.context.is_logged_in and loader.context.last_response_ts:
+            current_time = time.time()
+            time_since_last = current_time - loader.context.last_response_ts
+            if time_since_last < 2.0:  # Maintain 2s between requests
+                time.sleep(2.0 - time_since_last)
+
+        # Your existing data collection logic here
         data = {
             "Username": profile.username,
-            "Full Name": profile.full_name,
-            "Bio": profile.biography,
             "Followers": profile.followers,
-            "Following": profile.followees,
-            "Profile Pic URL": profile.profile_pic_url,
-            "Posts Count": profile.mediacount,
-            "Is Private": profile.is_private,
-            "Is Verified": profile.is_verified,
-            "External URL": profile.external_url if profile.external_url else "None",
+            # ... rest of your data collection
         }
-
-        # Collect recent posts
-        posts = []
-        for post in profile.get_posts():
-            if len(posts) >= 5:  # Limit to the latest 5 posts
-                break
-            posts.append({
-                "Caption": post.caption[:100] if post.caption else "No Caption",
-                "Likes": post.likes,
-                "Comments": post.comments,
-                "Post URL": post.url,
-                "Hashtags": list(post.caption_hashtags) if post.caption_hashtags else [],
-                "Mentions": list(post.caption_mentions) if post.caption_mentions else [],
-                "Post Date": post.date.strftime('%Y-%m-%d'),
-                "Is Video": post.is_video,
-                "Video Views": post.video_view_count if post.is_video else "N/A",
-            })
-
-        # Add engagement rate
-        total_likes = sum(post["Likes"] for post in posts)
-        total_comments = sum(post["Comments"] for post in posts)
-        engagement_rate = round(((total_likes + total_comments) / profile.followers) * 100, 2)
-
-        data["Engagement Rate (%)"] = engagement_rate
-        data["Recent Posts"] = posts
-
+        
         return {"status": "success", "data": data}
 
-    except instaloader.exceptions.ProfileNotExistsException as e:
-        logger.error(f"Profile {username} does not exist or is private: {e}")
-        raise HTTPException(status_code=404, detail="Profile does not exist or is private")
+    except instaloader.exceptions.QueryReturnedBadRequestException as e:
+        logger.error(f"Rate limited: {e}")
+        # Implement rotating proxy or wait longer
+        time.sleep(60)
+        return scrape_instagram_profile(username)
     except Exception as e:
-        logger.error(f"An error occurred while scraping {username}: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        logger.error(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Define the endpoint
 @app.get("/scrape/{username}")
 async def scrape(username: str):
     return scrape_instagram_profile(username)
 
-# Run the application
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

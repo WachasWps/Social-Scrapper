@@ -136,7 +136,7 @@
             postsContainer.innerHTML = "";
 
             try {
-                const response = await fetch(`https://social-scrapper-e3oj.onrender.com/scrape/${username}`);
+                const response = await fetch(`http://127.0.0.1:8000/scrape/${username}`);
                 const data = await response.json();
 
                 if (data.status === "success") {
