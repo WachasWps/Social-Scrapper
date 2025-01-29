@@ -3,14 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import instaloader
 import logging
 
+# Initialize FastAPI app
 app = FastAPI()
 
 # Enable CORS for frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for testing; restrict in production
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],  # Expose all headers to the client
 )
 
 # Configure logging
@@ -64,17 +66,19 @@ def scrape_instagram_profile(username):
 
         return {"status": "success", "data": data}
 
-    except instaloader.exceptions.ProfileNotExistsException:
-        logger.error(f"Profile {username} does not exist or is private")
+    except instaloader.exceptions.ProfileNotExistsException as e:
+        logger.error(f"Profile {username} does not exist or is private: {e}")
         raise HTTPException(status_code=404, detail="Profile does not exist or is private")
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
+        logger.error(f"An error occurred while scraping {username}: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
+# Define the endpoint
 @app.get("/scrape/{username}")
 async def scrape(username: str):
     return scrape_instagram_profile(username)
 
+# Run the application
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
