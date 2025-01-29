@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import instaloader
+import logging
 
 app = FastAPI()
 
@@ -11,6 +12,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 def scrape_instagram_profile(username):
     L = instaloader.Instaloader()
@@ -60,9 +65,11 @@ def scrape_instagram_profile(username):
         return {"status": "success", "data": data}
 
     except instaloader.exceptions.ProfileNotExistsException:
-        return {"status": "error", "message": "Profile does not exist or is private"}
+        logger.error(f"Profile {username} does not exist or is private")
+        raise HTTPException(status_code=404, detail="Profile does not exist or is private")
     except Exception as e:
-        return {"status": "error", "message": f"An error occurred: {str(e)}"}
+        logger.error(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 @app.get("/scrape/{username}")
 async def scrape(username: str):
@@ -71,7 +78,3 @@ async def scrape(username: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-
-
